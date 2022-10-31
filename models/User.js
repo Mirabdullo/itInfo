@@ -27,6 +27,9 @@ const userSchema = new Schema({
     user_photo: {
         type: String,
         required: true
+    },
+    user_token: {
+        type: String
     }
 },{versionKey: false, timestamps: true})
 

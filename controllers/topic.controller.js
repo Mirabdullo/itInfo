@@ -1,45 +1,51 @@
 const Topic = require('../models/Topic');
-const { errorHendler, checkId } = require('../helper/helper');
+const { checkId } = require('../helper/helper');
 const Author = require('../models/Author');
 const { topicValidation } = require('../validations/topic');
-
+const ApiError = require("../error/ApiError");
 
 const addTopic = async (req,res) => {
     try {
         const {error} = topicValidation(req.body)
         if(error){
-            return res.status(400).send({message: error.details[0].message})
+            return res.error(400,{friendlyMsg: error.details[0].message})
         }
         const {author_id,topic_title,topic_text,is_checked,is_approwed,expert_id} = req.body
 
         if(!author_id || !topic_title || !topic_text || !is_checked || !is_approwed || !expert_id){
-            return res.status(400).send({message: "Ma'limotlar to'liq kiritilmagan"})
+            return res.error(400,{friendlyMsg: "Ma'limotlar to'liq kiritilmagan"})
         }
         const author = await Author.findById(author_id)
         if(!author){
-            return res.status(400).send({message: "Author topilmadi"})
+            return res.error(400,{friendlyMsg: "Author topilmadi"})
         }
         const expert = await Author.findById(expert_id)
         if(!expert.is_expert){
-            return res.status(400).send({message: "Expert topilmadi"})
+            return res.error(400,{friendlyMsg: "Expert topilmadi"})
         }
 
         console.log(Topic);
         const newTopic = await Topic({author_id,topic_title,topic_text,is_checked,is_approwed,expert_id})
         newTopic.save()
-        res.status(200).send({message: "Topic added!"})
+        res.ok(200,{message: "Topic added!"})
 
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
 const getTopic = async (req,res) => {
     try {
         const topics = await Topic.find({})
-        res.status(200).send(topics)
+        res.ok(200,topics)
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -49,14 +55,14 @@ const updateTopicById = async (req,res) => {
         checkId(id)
         const new_topic = req.body
         if(new_topic.author_id && !(await Author.findById(new_topic.author_id))){
-            return res.status(400).send({message: 'Author id topilmadi'})
+            return res.error(400,{friendlyMsg: 'Author id topilmadi'})
         }
-        const expert = await Author.findById(expert_id)
+        const expert = await Author.findById(id)
         if(new_topic.expert_id && !expert.is_expert){
-            return res.status(400).send({message: "Expert topilmadi"})
+            return res.error(400,{friendlyMsg: "Expert topilmadi"})
         }
         const old_topic = await Topic.findById(id)
-        if(!old_topic) return res.status(400).send({message: "Bu idga tegishli ma'lumot topilmadi"})
+        if(!old_topic) return res.error(400,{friendlyMsg: "Bu idga tegishli ma'lumot topilmadi"})
 
         await Topic.findByIdAndUpdate(id,{
             author_id: new_topic.author_id || old_topic.author_id,
@@ -66,9 +72,12 @@ const updateTopicById = async (req,res) => {
             is_approwed: new_topic.is_approwed || old_topic.is_approwed,
             expert_id: new_topic.expert_id || old_topic.expert_id
         })
-        res.status(200).send({message: "Topic updated"})
+        res.ok(200,{message: "Topic updated"})
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -76,12 +85,15 @@ const deleteTopic = async (req,res) => {
     try {
         checkId(req.params.id)
         if(!(await Topic.findById(req.params.id))){
-            return res.status(400).send({message: "Topicda bunday ma'lumot topilmadi!"})
+            return res.error(400,{friendlyMsg: "Topicda bunday ma'lumot topilmadi!"})
         }
         await Topic.findByIdAndDelete(req.params.id)
-        res.status(200).send({message: "Topic deleted!"})
+        res.ok(200,{message: "Topic deleted!"})
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 

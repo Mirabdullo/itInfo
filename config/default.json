@@ -1,5 +1,11 @@
 {
     "port":3001,
     "dbUri":"mongodb://127.0.0.1:27017/itinfo",
-    "secret": "M1r@bdulloH"
+    "secret": "M1r@bdulloH",
+    "expire": "8 days",
+    "access_key": "BuAccessUchunMaxsusKalit",
+    "refresh_key": "BuRefreshUchunMaxsusKalit",
+    "access_time": "30s",
+    "refresh_time": "30d",
+    "refresh_ms": 2592000000
 }

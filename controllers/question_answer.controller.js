@@ -1,24 +1,24 @@
-const { errorHendler, checkId } = require("../helper/helper")
+const { checkId } = require("../helper/helper")
 const Author = require("../models/Author")
 const Question_Answer = require("../models/Question_Answer")
 const { question_answerValidation } = require("../validations/question_answer")
-
+const ApiError = require("../error/ApiError");
 
 
 const addQuestion_Answer = async (req,res) => {
     try {
         const {error} = question_answerValidation(req.body)
         if(error){
-            return res.status(400).send({message: error.details[0].message})
+            return res.error(400,{friendlyMsg: error.details[0].message})
         }
         const {question,answer,is_checked,expert_id} = req.body
         if(!question || !answer || !expert_id){
-            return res.status(400).send({message: "Ma'lumotlarni to'liq kiriting"})
+            return res.error(400,{friendlyMsg: "Ma'lumotlarni to'liq kiriting"})
         }
 
         checkId(expert_id)
         if(!(await Author.findById(expert_id))){
-            return res.status(400).send({message: "idga tegishli ma'lumot topilmadi"})
+            return res.error(400,{friendlyMsg: "idga tegishli ma'lumot topilmadi"})
         }
 
         const newQuestion_Answer = await Question_Answer({
@@ -28,11 +28,14 @@ const addQuestion_Answer = async (req,res) => {
             expert_id
         })
         newQuestion_Answer.save()
-        res.status(200).send({message: "Question Answer added!"})
+        res.ok(200,{message: "Question Answer added!"})
 
 
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -41,9 +44,12 @@ const getQuestion_Answer = async (req,res) => {
         const id = req.params.id
         checkId(id)
         const question_answer = await Question_Answer.find({})
-        res.status(200).send(question_answer)
+        res.ok(200,question_answer)
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -54,12 +60,12 @@ const updateQuestion_AnswerById = async (req,res) => {
         checkId(id)
         
         const old_question_answer = await Question_Answer.findById(id)
-        if(!old_question_answer) return res.status(400).send({message: "idga tegishli ma'lumot topilmadi"})
+        if(!old_question_answer) return res.error(400,{friendlyMsg: "idga tegishli ma'lumot topilmadi"})
 
         const new_question_answer = req.body
 
         if(new_question_answer.expert_id && !(await Author.findById(new_question_answer.expert_id))){
-            return res.status(400).send({message: "idga tegishli ma'lumot topilmadi"})
+            return res.error(400,{friendlyMsg: "idga tegishli ma'lumot topilmadi"})
         }
 
         await Question_Answer.findByIdAndUpdate(id,{
@@ -68,9 +74,12 @@ const updateQuestion_AnswerById = async (req,res) => {
            is_checked: new_question_answer.is_checked || old_question_answer.is_checked, 
            expert_id: new_question_answer.expert_id || old_question_answer.expert_id, 
         })
-        res.status(200).send({message: "Question Answer updated!"})
+        res.ok(200,{message: "Question Answer updated!"})
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -80,9 +89,12 @@ const deleteQuestion_AnswerById = async (req,res) => {
         const id = req.params.id
         checkId(id)
         await Question_Answer.findByIdAndDelete(id)
-        res.status(200).send({message: "deleted!"})
+        res.ok(200,{message: "deleted!"})
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 

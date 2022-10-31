@@ -15,9 +15,11 @@ const desc_QaRoutes = require("./desc_qa.routes")
 const mediaRoutes = require("./media.routes")
 const adminRoutes = require("./admin.routes")
 const userRoutes = require("./user.routes")
+const responses = require('./responses.routes')
+
 
 const router = Router()
-
+router.use(responses)
 
 router.use("/api/dictionary",dictionaryRoutes)
 router.use("/api/category",categoryRoutes)

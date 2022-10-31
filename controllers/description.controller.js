@@ -4,40 +4,37 @@ const Category = require("../models/Category")
 const Dictionary = require("../models/Dictionary")
 const { checkId } = require("../helper/helper")
 const { descriptionValidation } = require("../validations/description")
-
-const errorHendler = (res,error) =>{
-    res.status(400).send({messaga: error.messaga})
-}
+const ApiError = require("../error/ApiError");
 
 const addDescription = async (req,res) => {
     try {
         const {error} = descriptionValidation(req.body)
         if(error){
-            return res.status(400).send({message: error.details[0].message})
+            return res.error(400,{friendlyMsg: error.details[0].message})
         }
         const {category_id,description} = req.body
         
         if(category_id === '' || description === ''){
-            return res.status(400).send({messaga: "Ma'lumotlarni to'liq kiriting!"})
+            return res.error(400,{friendlyMsg: "Ma'lumotlarni to'liq kiriting!"})
         }
         
         if(!mongoose.isValidObjectId(category_id)){
-            return res.status(400).send({messaga: "Id noto'g'ri kiritilgan"})
+            return res.error(400,{friendlyMsg: "Id noto'g'ri kiritilgan"})
         }        
         if(!(await Category.findOne({_id:category_id}))){
-            return res.status(400).send({messaga: "Ro'yxatda bu idga tegishli ma'lumotlar topilmadi"})
+            return res.error(400,{friendlyMsg: "Ro'yxatda bu idga tegishli ma'lumotlar topilmadi"})
         }
 
         if(await Description.find({category_id})){
-            return res.status(400).send({messaga: "Ro'yxatda bunday ma'lumot bor"})
+            return res.error(400,{friendlyMsg: "Ro'yxatda bunday ma'lumot bor"})
         }
         
         console.log("2")
         await Description({category_id,description}).save()
-        res.status(200).send({messaga: "Added description!"})
+        res.ok(200,{messaga: "Added description!"})
 
     } catch (error) {
-        errorHendler(res,error)
+        res.error(400,{friendlyMsg:error})
     }
 }
 
@@ -45,18 +42,18 @@ const addDescription = async (req,res) => {
 const getDescriptions = async (req,res) =>{
     try {
         const descriptions = await Description.find({})
-        res.status(200).send(descriptions)
+        res.ok(200,descriptions)
     } catch (error) {
-        errorHendler(res,error)
+        res.error(400,{friendlyMsg:error})
     }
 }
 
 const getDescriptionById = async (req,res) =>{
     try {
         const description = await Description.findById(req.params.id)
-        res.status(200).send(description)
+        res.ok(200,description)
     } catch (error) {
-        errorHendler(res,error)
+        res.error(400,{friendlyMsg:error})
     }
 }
 
@@ -68,9 +65,9 @@ const updateDescriptionById = async (req,res) =>{
         const {category_id} = await Description.find({_id:id})
 
         await Description.findByIdAndUpdate(id ,{category_id,description},{new:true})
-        res.status(200).send({messaga: "Ma'lumotlar yangilandi"})
+        res.ok(200,{messaga: "Ma'lumotlar yangilandi"})
     } catch (error) {
-        errorHendler(res,error)
+        res.error(400,{friendlyMsg:error})
     }
 }
 
@@ -80,9 +77,9 @@ const deleteDescriptionById = async (req,res) => {
         const id = req.params.id
         checkId(id)
         await Description.findByIdAndDelete(id)
-        res.status(200).send({messaga: "Ma'lumot o'chirildi"})
+        res.ok(200,{messaga: "Ma'lumot o'chirildi"})
     } catch (error) {
-        errorHendler(res,error)
+        res.error(400,{friendlyMsg:error})
     }
 }
 

@@ -41,7 +41,7 @@ const authorSchema = new Schema({
         maxlength:12,
         index:true
     },
-    author_passwor: {
+    author_password: {
         type: String, 
         required: true,
         min: 6,
@@ -61,6 +61,9 @@ const authorSchema = new Schema({
     },
     is_expert: {
         type: Boolean
+    },
+    author_token: {
+        type:String
     }
 },
 {versionKey:false, timestamps: true})

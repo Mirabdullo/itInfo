@@ -1,63 +1,144 @@
-const { errorHendler, checkId } = require("../helper/helper")
 const Admin = require("../models/Admin");
 const { adminValidation } = require("../validations/admin");
 const bcrypt = require('bcryptjs');
-const jwt = require("jsonwebtoken");
+const jwt = require("../services/JwtService");
 const config = require('config');
-
+const { checkId } = require("../helper/helper");
+const joi = require('joi');
+const ApiError = require("../error/ApiError");
 
 const addAdmin = async (req,res) =>{
     try {
         const {error, value} = adminValidation(req.body)
         if(error){
-            return res.status(400).send({message: error.details[0].message})
+            return res.error(400,{friendlyMsg: error.details[0].message})
         }
         const {admin_name,admin_email, admin_password,admin_is_active, admin_is_creator} = value
 
         if(!admin_name || !admin_email || !admin_password){
-            return res.status(400).send("Ma'lumotlarni to'liq kiriting!")
+            return res.error(400,{friendlyMsg: "Ma'lumotlarni to'liq kiriting!"})
         }
          
         if(await Admin.findOne({admin_email})){
-            return res.status(400).send("This admin is already added!")
+            return res.error(400,{friendlyMsg: "This admin is already added!"})
         }
         const adminHashedPassword = bcrypt.hashSync(admin_password,7)
 
         const newAdmin = await Admin({admin_name,admin_email, admin_password: adminHashedPassword,admin_is_active, admin_is_creator})
         newAdmin.save()
-        res.status(200).send("Admin added!")
+        res.ok(200,"Admin added!")
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
-
-const generateAccessToken = (id,admin_is_active) => {
-    const payload = {
-        id,
-        admin_is_active
-    }
-    return jwt.sign(payload,config.get("secret"), {expiresIn: "12h"})
+const emailValidation = email => {
+    const checkEmail = joi.string().email().validate(email)
+    return checkEmail.error ? false : true
 }
+
 
 
 const loginAdmin = async (req,res) => {
     try {
-        const {login, password} = req.body
-        const admin = await Admin.findOne({$or: [{admin_email:login},{admin_name:login}]})
-        if(!admin) return res.status(400).send("login invalid")
+        const {email, password} = req.body
+        let admin
+        if(!emailValidation(email)) return res.error(400,{friendlyMsg: "Email noto'g'ri"})
+        admin = await Admin.findOne({admin_email:email})
+        console.log(admin);
+        if(!admin) return res.error(400,{friendlyMsg: "Admin topilmadi"})
 
         const validPassword = bcrypt.compareSync(
             password,
             admin.admin_password
         )
-        if(!validPassword) return res.status(400).send("Password invalid")
-        const token = generateAccessToken(admin._id,admin.admin_is_active)
-        res.status(200).send(token)
+        if(!validPassword) return res.error(400,{friendlyMsg: "Password invalid"})
+        const payload = {
+            id: admin._id,
+            admin_is_active: admin.admin_is_active,
+            admin_is_creator: admin.admin_is_creator
+        }
+        const tokens = jwt.generateTokens(payload)
+        console.log(tokens);
+        admin.admin_token = tokens.refreshToken
+        await admin.save()
+        res.cookie("refreshToken",tokens.refreshToken, {
+            maxAge: config.get("refresh_ms"),
+            httpOnly: true
+        })
+        res.ok(200,tokens)
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
+
+
+const logoutAdmin = async (req,res) => {
+    try {
+        console.log(req.cookies);
+        const {refreshToken} = req.cookies
+        let admin;
+        if(!refreshToken) return res.error(400,{friendlyMsg: "Token topilmadi"})
+        admin = await Admin.findOneAndUpdate(
+            {admin_token: refreshToken},
+            {admin_token: ""},
+            {new: true}
+        )
+        if(!admin) return res.error(400,{friendlyMsg: "Admin topilmadi"})
+
+        res.clearCookie("refreshToken")
+        res.ok(200,admin)
+
+    } catch (error) {
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
+    }
+} 
+
+
+
+const refreshAdminToken = async (req,res) => {
+    try {
+        const {refreshToken} = req.cookies
+        if(!refreshToken) return res.error(400,{friendlyMsg: "Token topilmadi"})
+        const adminDataFromCookies = await jwt.verifyRefresh(refreshToken)
+
+        const adminDataFromDB = await Admin.findOne({admin_token: refreshToken})
+        if(!adminDataFromCookies || !adminDataFromDB){
+            return res.error(400,{friendlyMsg: "Admin ro'yxatdan o'tmagan"})
+        }
+        const admin = await Admin.findById(adminDataFromCookies.id)
+        if(!admin) return res.error(400,{friendlyMsg: "ID noto'g'ri"})
+
+        const payload = {
+            id: admin._id,
+            admin_is_active: admin.admin_is_active,
+            admin_is_creator: admin.admin_is_creator
+        }
+        const tokens = jwt.generateTokens(payload)
+        admin.admin_token = tokens.refreshToken
+        await admin.save()
+        res.cookie("refreshToken",tokens.refreshToken, {
+            maxAge: config.get("refresh_ms"),
+            httpOnly: true
+        })
+        res.ok(200,tokens)
+    } catch (error) {
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
+    }
+}
+
 
 
 
@@ -65,10 +146,13 @@ const loginAdmin = async (req,res) => {
 const getAdmin = async (req,res) =>{
     try {
         const admin = await Admin.find({})
-        if(!admin) return res.status(400).send("Ma'lumot topilmadi")
-        res.status(200).send(admin)
+        if(!admin) return res.error(400,{friendlyMsg: "Ma'lumot topilmadi"})
+        res.ok(200,admin)
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -79,7 +163,7 @@ const updateAdminById = async (req,res) =>{
         const id = req.params.id
         checkId(id)
         const old_admin = await Admin.findById(id)
-        if(!old_admin) return res.status(400).send("Bu idga tegishli ma'lumot topilmadi!")
+        if(!old_admin) return res.error(400,{friendlyMsg: "Bu idga tegishli ma'lumot topilmadi!"})
 
         const new_admin = req.body
 
@@ -90,9 +174,12 @@ const updateAdminById = async (req,res) =>{
             admin_name: new_admin.admin_is_active || false, 
             admin_name: new_admin.admin_is_creator || false
         })
-        res.status(200).send("Admin updated!")
+        res.ok(200,"Admin updated!")
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -103,8 +190,12 @@ const deleteAdminById = async (req,res) =>{
         const id = req.params.id
         checkId(id)
         await Admin.findByIdAndDelete(id)
+        res.ok(200,"Admin deleted!")
     } catch (error) {
-        errorHendler(res,error)
+        ApiError.internal(res,{
+            message:error,
+            friendlyMsg: "Serverda xatolik"
+        })
     }
 }
 
@@ -114,5 +205,7 @@ module.exports = {
     getAdmin,
     loginAdmin,
     updateAdminById,
-    deleteAdminById
+    deleteAdminById,
+    logoutAdmin,
+    refreshAdminToken
 }
